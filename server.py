@@ -1,8 +1,22 @@
 import socket
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 
 def start_server():
+    #mongdb connection
+    uri = "mongodb+srv://testuser:vmDbYFhZwy65Fgg0@cluster0.py74l.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+    # Create a new client and connect to the server
+    client = MongoClient(uri, server_api=ServerApi('1'))
+    # Send a ping to confirm a successful connection
+    try:
+        client.admin.command('ping')
+        print("Pinged your deployment. You successfully connected to MongoDB!")
+    except Exception as e:
+        print(e)
+
     # Get server IP and port
     server_ip = input("Enter the server IP address: ")
+
     #which port number our server will use
     server_port = int(input("Enter the port number to start the server: "))
     # Create a TCP/IP socket
