@@ -1,6 +1,19 @@
 import socket
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+import json
+from datetime import datetime, timezone, timedelta
+
+# Conversion functions
+def convert_to_rh(moisture):
+    return moisture * 0.5  # Example conversion factor
+
+def convert_to_pst(utc_time):
+    pst = timezone(timedelta(hours=-8))
+    return utc_time.astimezone(pst)
+
+def convert_to_gallons(liters):
+    return liters * 0.264172
 
 def start_server():
     #mongdb connection
