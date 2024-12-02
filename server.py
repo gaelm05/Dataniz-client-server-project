@@ -64,16 +64,16 @@ def start_server():
     # Send a ping to confirm a successful connection
     db = client['test']
     collection = db['DB1_virtual']
+    metadata_collection = db['DB1_metadata']
 
     # Binary search tree to manage IoT data
     bst = BinarySearchTree()
 
     # Fetch and populate BST with IoT data
     for item in collection.find():
-        metadata = item.get('metadata', {})
-        key = metadata.get('device_id', 'unknown')
+        key = item.get('device_id', 'unknown')
         bst.insert(key, item)
-
+    #tests the connection to the database
     try:
         client.admin.command('ping')
         print("Pinged your deployment. You successfully connected to MongoDB!")
@@ -97,8 +97,47 @@ def start_server():
         # Accept a connection from an IP address and socket
         client_socket, client_address = server_socket.accept()
         print(f"Established connection to {server_ip} and port: {server_port}")
-        while True:
-            # Receive the message from the client
+        try:
+            while True:
+                data = client_socket.recv(1024).decode()
+                if not data:
+                    break
+                query = json.loads(data)
+                device_id = query.get("device_id")
+                bst_node = bst.search(device_id)
+                if bst_node:
+                    device_data = bst_node.data
+
+                    # Fetch metadata from the metadata collection
+                    metadata = metadata_collection.find_one({"device_id": device_id})
+                    if not metadata:
+                        client_socket.sendall(json.dumps({"error": "Metadata not found"}).encode())
+                        continue
+
+                    # Process and convert data
+                    result = {
+                        "device_id": device_id,
+                        "readings": [],
+                        "metadata": metadata,  # Include metadata in response
+                    }
+                    for reading in device_data.get("readings", []):
+                        rh = convert_to_rh(reading["moisture"])
+                        pst_time = convert_to_pst(datetime.fromisoformat(reading["timestamp"]))
+                        gallons = convert_to_gallons(reading["liters"])
+                        result["readings"].append({
+                            "timestamp": pst_time.isoformat(),
+                            "rh": rh,
+                            "gallons": gallons
+                        })
+                    client_socket.sendall(json.dumps(result).encode())
+                else:
+                    client_socket.sendall(json.dumps({"error": "Device not found"}).encode())
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            client_socket.close()
+
+            ''''# Receive the message from the client
             client_message = client_socket.recv(1024).decode()
             if not client_message:
                 break
@@ -107,7 +146,7 @@ def start_server():
             message = client_message.upper()
             # Send the response back to the client
             client_socket.sendall(message.encode())
-        client_socket.close()
+        client_socket.close()'''
 
 if __name__ == "__main__":
     start_server()
