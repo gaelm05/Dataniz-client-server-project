@@ -113,7 +113,6 @@ def start_server():
                     if not metadata:
                         client_socket.sendall(json.dumps({"error": "Metadata not found"}).encode())
                         continue
-
                     # Process and convert data
                     result = {
                         "device_id": device_id,
