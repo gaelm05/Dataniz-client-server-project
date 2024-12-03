@@ -56,6 +56,57 @@ def convert_to_pst(utc_time):
 def convert_to_gallons(liters):
     return liters * 0.264172
 
+COMMAND_MAPPING = {
+    "average moisture": {"device": "refrigerator", "metric": "Moisture Meter - Moisture Meter", "timeframe": 3},
+    "average water used": {"device": "dishwasher", "metric": "Water Consumption", "timeframe": None},
+    "most electricity used": {"metric": "ammeter-fridge", "action": "max_consumption"}
+}
+def handle_query(command, bst, collection):
+    if command not in COMMAND_MAPPING:
+        return {"error": f"Unrecognized command: '{command}'."}
+
+    query = COMMAND_MAPPING[command]
+    device = query.get("device")
+    metric = query.get("metric")
+    timeframe = query.get("timeframe")
+    action = query.get("action")
+
+    if action == "max_consumption":
+        # Handle electricity consumption comparison
+        max_consumption = 0
+        max_device = None
+        for device_data in collection.find():
+            total = float(device_data.get("payload", {}).get("ammeter-fridge", 0))
+            if total > max_consumption:
+                max_consumption = total
+                max_device = device_data.get("payload", {}).get("board_name")
+        return {"max_consumption_device": max_device, "consumption": max_consumption}
+
+    # Search BST for the device
+    if device:
+        node = bst.search(device)
+        if not node:
+            return {"error": f"Device '{device}' not found."}
+
+        readings = node.data.get("payload", {}).get("readings", [])
+        total_value, count = 0, 0
+        for reading in readings:
+            record_time = datetime.fromtimestamp(int(reading.get("timestamp", 0)))
+            if timeframe and datetime.now(timezone.utc) - record_time > timedelta(hours=timeframe):
+                continue
+            total_value += float(reading.get(metric, 0))
+            count += 1
+
+        if count == 0:
+            return {"error": f"No data found for metric '{metric}' in the specified timeframe."}
+
+        if metric == "Moisture Meter - Moisture Meter":
+            total_value = convert_to_rh(total_value / count)
+        elif metric == "Water Consumption":
+            total_value = convert_to_gallons(total_value / count)
+
+        return {"device": device, "metric": metric, "average_value": total_value}
+
 def start_server():
     #mongdb connection
     uri = "mongodb+srv://testuser:vmDbYFhZwy65Fgg0@cluster0.py74l.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
@@ -136,16 +187,38 @@ def start_server():
         finally:
             client_socket.close()
 
-            ''''# Receive the message from the client
-            client_message = client_socket.recv(1024).decode()
-            if not client_message:
-                break
-            print(f"Received message: {client_message}")
-            # Convert the message to uppercase our response we will send
-            message = client_message.upper()
-            # Send the response back to the client
-            client_socket.sendall(message.encode())
-        client_socket.close()'''
+
+
+def parse_query(query):
+    #parsing the queries to help find device that it is asking for
+    keywords = query.lower().split()
+    device = None
+    metric = None
+    timeframe = None
+
+    # Identify the device
+    if "fridge" in keywords or "refrigerator" in keywords:
+        device = "refrigerator"
+    elif "dishwasher" in keywords:
+        device = "dishwasher"
+
+    # Identify the metric
+    if "moisture" in keywords:
+        metric = "Moisture Meter - Moisture Meter"
+    elif "water" in keywords:
+        metric = "Water Consumption"
+    elif "electricity" in keywords or "power" in keywords:
+        metric = "ammeter-fridge"
+
+    # Identify the timeframe
+    if "past" in keywords and "hours" in keywords:
+        try:
+            idx = keywords.index("hours")
+            timeframe = int(keywords[idx - 1])
+        except (ValueError, IndexError):
+            timeframe = None  # Invalid or unspecified timeframe
+
+    return device, metric, timeframe
 
 if __name__ == "__main__":
     start_server()
