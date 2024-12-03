@@ -72,15 +72,27 @@ def handle_query(command, bst,meta, collection):
     action = query.get("action")
 
     #use of metadata to get correct device
-    device_metadata = meta.find_one({"customAttributes.name": query.get("device")})
+    device_metadata = meta.find_one({"customAttributes.name": device})
     if not device_metadata:
-        return {"error": f"Device metadata not found for '{query.get('device')}'."}
+        return {"error": f"Device metadata not found for '{device}'."}
 
     asset_uid = device_metadata.get("assetUid")
-    node = bst.search(asset_uid)
+    print(f"Searching BST for assetUid: {asset_uid}")
+    node = bst.search(asset_uid.lower())
     #debugging for if assest uid pulled does not find anything
     if not node:
         return {"error": f"Device with assetUid '{asset_uid}' not found in BST."}
+
+    child_devices = collection.find({"payload.parent_asset_uid": asset_uid})
+    aggregated_readings=[]
+
+    parent_readings = node.data.get("data",{}).get("payload",{}).get("readings",[])
+    aggregated_readings.extend(parent_readings)
+
+    for child_device in child_devices:
+        child_readings = child_device.get("payload", {}).get("readings", [])
+        aggregated_readings.extend(child_readings)
+
     if action == "max_consumption":
         # Handle electricity consumption comparison
         max_consumption = 0
@@ -93,10 +105,10 @@ def handle_query(command, bst,meta, collection):
         return {"max_consumption_device": max_device, "consumption": max_consumption}
 
     # Search BST for the device
-    if not node:
-        return {"error": f"Device '{asset_uid}' not found."}
+    #if not node:
+        #return {"error": f"Device '{asset_uid}' not found."}
 
-    readings = node.data.get("payload", {}).get("readings", [])
+    readings = node.data.get("data", {}).get("payload", {}).get("readings", [])
     total_value, count = 0, 0
     for reading in readings:
         record_time = datetime.fromtimestamp(int(reading.get("timestamp", 0)))
@@ -120,7 +132,10 @@ def populate_bst_with_metadata(collection, metadata_collection):
     """
     bst = BinarySearchTree()
     for device_data in collection.find():
-        asset_uid = device_data.get("payload", {}).get("assetUid")
+        payload = device_data.get("payload", {})
+        asset_uid = payload.get("assetUid")
+        parent_asset_uid = payload.get("parent_asset_uid")
+
         if not asset_uid:
             continue
 
@@ -128,7 +143,12 @@ def populate_bst_with_metadata(collection, metadata_collection):
         metadata = metadata_collection.find_one({"assetUid": asset_uid})
         if metadata:
             device_name = metadata.get("customAttributes", {}).get("name", "unknown").lower()
+            print(f"Inserting into BST: assetUid={asset_uid}, device_name={device_name}")
             bst.insert(asset_uid, {"data": device_data, "metadata": metadata})
+        if parent_asset_uid:
+            print(f"adding parent relationship: parent_uid{parent_asset_uid}, child_uid={asset_uid}")
+            bst.insert(parent_asset_uid.lower(), {"data": device_data, "metadata": metadata})
+
     return bst
 
 def start_server():
