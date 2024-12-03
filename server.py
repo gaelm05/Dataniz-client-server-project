@@ -119,11 +119,10 @@ def start_server():
 
     # Binary search tree to manage IoT data
     bst = BinarySearchTree()
-
-    # Fetch and populate BST with IoT data
     for item in collection.find():
-        key = item.get('device_id', 'unknown')
-        bst.insert(key, item)
+        device_name = item.get("payload", {}).get("board_name", "unknown").split(" - ")[-1].lower()
+        bst.insert(device_name, item)
+
     #tests the connection to the database
     try:
         client.admin.command('ping')
@@ -153,72 +152,13 @@ def start_server():
                 data = client_socket.recv(1024).decode()
                 if not data:
                     break
-                query = json.loads(data)
-                device_id = query.get("device_id")
-                bst_node = bst.search(device_id)
-                if bst_node:
-                    device_data = bst_node.data
-
-                    # Fetch metadata from the metadata collection
-                    metadata = metadata_collection.find_one({"device_id": device_id})
-                    if not metadata:
-                        client_socket.sendall(json.dumps({"error": "Metadata not found"}).encode())
-                        continue
-                    # Process and convert data
-                    result = {
-                        "device_id": device_id,
-                        "readings": [],
-                        "metadata": metadata,  # Include metadata in response
-                    }
-                    for reading in device_data.get("readings", []):
-                        rh = convert_to_rh(reading["moisture"])
-                        pst_time = convert_to_pst(datetime.fromisoformat(reading["timestamp"]))
-                        gallons = convert_to_gallons(reading["liters"])
-                        result["readings"].append({
-                            "timestamp": pst_time.isoformat(),
-                            "rh": rh,
-                            "gallons": gallons
-                        })
-                    client_socket.sendall(json.dumps(result).encode())
-                else:
-                    client_socket.sendall(json.dumps({"error": "Device not found"}).encode())
+                print(f"Received command: {data}")
+                response = handle_query(data, bst, collection)
+                client_socket.send(json.dumps(response).encode())
         except Exception as e:
             print(f"Error: {e}")
         finally:
             client_socket.close()
-
-
-
-def parse_query(query):
-    #parsing the queries to help find device that it is asking for
-    keywords = query.lower().split()
-    device = None
-    metric = None
-    timeframe = None
-
-    # Identify the device
-    if "fridge" in keywords or "refrigerator" in keywords:
-        device = "refrigerator"
-    elif "dishwasher" in keywords:
-        device = "dishwasher"
-
-    # Identify the metric
-    if "moisture" in keywords:
-        metric = "Moisture Meter - Moisture Meter"
-    elif "water" in keywords:
-        metric = "Water Consumption"
-    elif "electricity" in keywords or "power" in keywords:
-        metric = "ammeter-fridge"
-
-    # Identify the timeframe
-    if "past" in keywords and "hours" in keywords:
-        try:
-            idx = keywords.index("hours")
-            timeframe = int(keywords[idx - 1])
-        except (ValueError, IndexError):
-            timeframe = None  # Invalid or unspecified timeframe
-
-    return device, metric, timeframe
 
 if __name__ == "__main__":
     start_server()
