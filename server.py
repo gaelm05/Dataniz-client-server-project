@@ -12,7 +12,7 @@ class BSTNode:
         self.left = None
         self.right = None
 
-#binary search tree setuo
+#binary search tree setup
 class BinarySearchTree:
     def __init__(self):
         self.root = None
@@ -61,7 +61,7 @@ COMMAND_MAPPING = {
     "average water used": {"device": "dishwasher", "metric": "Water Consumption", "timeframe": None},
     "most electricity used": {"metric": "ammeter-fridge", "action": "max_consumption"}
 }
-def handle_query(command, bst, collection):
+def handle_query(command, bst,meta, collection):
     if command not in COMMAND_MAPPING:
         return {"error": f"Unrecognized command: '{command}'."}
 
@@ -71,6 +71,16 @@ def handle_query(command, bst, collection):
     timeframe = query.get("timeframe")
     action = query.get("action")
 
+    #use of metadata to get correct device
+    device_metadata = meta.find_one({"customAttributes.name": query.get("device")})
+    if not device_metadata:
+        return {"error": f"Device metadata not found for '{query.get('device')}'."}
+
+    asset_uid = device_metadata.get("assetUid")
+    node = bst.search(asset_uid)
+    #debugging for if assest uid pulled does not find anything
+    if not node:
+        return {"error": f"Device with assetUid '{asset_uid}' not found in BST."}
     if action == "max_consumption":
         # Handle electricity consumption comparison
         max_consumption = 0
@@ -83,29 +93,43 @@ def handle_query(command, bst, collection):
         return {"max_consumption_device": max_device, "consumption": max_consumption}
 
     # Search BST for the device
-    if device:
-        node = bst.search(device)
-        if not node:
-            return {"error": f"Device '{device}' not found."}
+    if not node:
+        return {"error": f"Device '{asset_uid}' not found."}
 
-        readings = node.data.get("payload", {}).get("readings", [])
-        total_value, count = 0, 0
-        for reading in readings:
-            record_time = datetime.fromtimestamp(int(reading.get("timestamp", 0)))
-            if timeframe and datetime.now(timezone.utc) - record_time > timedelta(hours=timeframe):
-                continue
-            total_value += float(reading.get(metric, 0))
-            count += 1
+    readings = node.data.get("payload", {}).get("readings", [])
+    total_value, count = 0, 0
+    for reading in readings:
+        record_time = datetime.fromtimestamp(int(reading.get("timestamp", 0)))
+        if timeframe and datetime.now(timezone.utc) - record_time > timedelta(hours=timeframe):
+            continue
+        total_value += float(reading.get(metric, 0))
+        count += 1
 
-        if count == 0:
-            return {"error": f"No data found for metric '{metric}' in the specified timeframe."}
+    if count == 0:
+        return {"error": f"No data found for metric '{metric}' in the specified timeframe."}
 
-        if metric == "Moisture Meter - Moisture Meter":
-            total_value = convert_to_rh(total_value / count)
-        elif metric == "Water Consumption":
-            total_value = convert_to_gallons(total_value / count)
+    if metric == "Moisture Meter - Moisture Meter":
+        total_value = convert_to_rh(total_value / count)
+    elif metric == "Water Consumption":
+        total_value = convert_to_gallons(total_value / count)
 
-        return {"device": device, "metric": metric, "average_value": total_value}
+    return {"device": device_metadata.get("customAttributes",{}).get("name"), "metric": metric, "average_value": total_value}
+def populate_bst_with_metadata(collection, metadata_collection):
+    """
+    Populate the BST using IoT data and correlate it with metadata.
+    """
+    bst = BinarySearchTree()
+    for device_data in collection.find():
+        asset_uid = device_data.get("payload", {}).get("assetUid")
+        if not asset_uid:
+            continue
+
+        # Fetch metadata for the device
+        metadata = metadata_collection.find_one({"assetUid": asset_uid})
+        if metadata:
+            device_name = metadata.get("customAttributes", {}).get("name", "unknown").lower()
+            bst.insert(asset_uid, {"data": device_data, "metadata": metadata})
+    return bst
 
 def start_server():
     #mongdb connection
@@ -115,13 +139,13 @@ def start_server():
     # Send a ping to confirm a successful connection
     db = client['test']
     collection = db['DB1_virtual']
-    metadata_collection = db['DB1_metadata']
+    meta_collection = db['DB1_metadata']
 
     # Binary search tree to manage IoT data
-    bst = BinarySearchTree()
-    for item in collection.find():
+    bst = populate_bst_with_metadata(collection, meta_collection)
+    '''for item in collection.find():
         device_name = item.get("payload", {}).get("board_name", "unknown").split(" - ")[-1].lower()
-        bst.insert(device_name, item)
+        bst.insert(device_name, item)'''
 
     #tests the connection to the database
     try:
@@ -153,7 +177,7 @@ def start_server():
                 if not data:
                     break
                 print(f"Received command: {data}")
-                response = handle_query(data, bst, collection)
+                response = handle_query(data, bst, meta_collection,collection)
                 client_socket.send(json.dumps(response).encode())
         except Exception as e:
             print(f"Error: {e}")

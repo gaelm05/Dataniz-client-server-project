@@ -34,7 +34,7 @@ while connected & (someData != 'end chat'):
     if someData == "help":
         help_user()
     elif someData == "what is the average moisture inside my kitchen fridge in the past three hours?":
-        myTCPSocket.send(bytearray(str('average mositure'), encoding = 'utf-8'))
+        myTCPSocket.send(bytearray(str('average moisture'), encoding = 'utf-8'))
         serverResponse = myTCPSocket.recv(maxBytesToReceive)
     elif someData == "what is the average water consumption per cycle in my smart dishwasher?":
         myTCPSocket.send(bytearray(str('average water used'), encoding = 'utf-8'))
