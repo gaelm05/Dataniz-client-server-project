@@ -14,7 +14,12 @@ try:
     connected = True
     print('!!Type "end chat" to quit!!')
     print('!Enter "help" for commands!')
-    someData = input("Enter a command\n:")
+    print("From the menu select an option \n"
+            "1. what is the average moisture inside my kitchen fridge in the past three hours?\n" 
+            "2.what is the average water consumption per cycle in my smart dishwasher?\n"
+            "3.which device consumed more electricity among my three IoT devices?")
+
+    someData = input("Enter a choice:")
 
 except socket.error as error:
     print(f'Connection failed: {error}')
@@ -33,13 +38,13 @@ while connected & (someData != 'end chat'):
 
     if someData == "help":
         help_user()
-    elif someData == "what is the average moisture inside my kitchen fridge in the past three hours?":
+    elif someData == "what is the average moisture inside my kitchen fridge in the past three hours?" or "1'":
         myTCPSocket.send(bytearray(str('average moisture'), encoding = 'utf-8'))
         serverResponse = myTCPSocket.recv(maxBytesToReceive)
-    elif someData == "what is the average water consumption per cycle in my smart dishwasher?":
+    elif someData == "what is the average water consumption per cycle in my smart dishwasher?" or "2":
         myTCPSocket.send(bytearray(str('average water used'), encoding = 'utf-8'))
         serverResponse = myTCPSocket.recv(maxBytesToReceive)
-    elif someData == "which device consumed more electricity among my three IoT devices?":
+    elif someData == "which device consumed more electricity among my three IoT devices?" or "3":
         myTCPSocket.send(bytearray(str('most electricity used'), encoding = 'utf-8'))
         serverResponse = myTCPSocket.recv(maxBytesToReceive)
     else:
