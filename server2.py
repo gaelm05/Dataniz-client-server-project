@@ -13,7 +13,8 @@ def get_average_moisture(db, collection_name, board_name, hours=3):
     pipeline = [
         {
             "$match": {
-                "payload.board_name": board_name,
+                "payload.parent_asset_uid": "7y3-30g-1m0-ye0",
+                "payload.asset_uid": "c3e-k57-ruu-1e6",
                 "time.$date": {
                     "$gte": three_hours_ago
                 }
@@ -38,6 +39,7 @@ def start_server():
     # Create a new client and connect to the server
     client = MongoClient(uri, server_api=ServerApi('1'))
     db = client['test']
+    collection = db["DB1_virtual"]
     # Send a ping to confirm a successful connection
 
     try:
