@@ -73,12 +73,12 @@ def start_server():
                         document = collection.find_one({"payload.parent_asset_uid": "7y3-30g-1m0-ye0"})
                         print(document)
                         print("this is reaching the try statement")
-                        response = {"average_moisture": average_moisture}
+                        response = {"average_moisture": document}
                     except Exception as e:
                         response = {"error": str(e)}
-                        client_socket.sendall(json.dumps(response).encode())
+                    client_socket.sendall(json.dumps(response).encode())
                 #client option 2
-                elif client_message == "2" or client_message == "average water used":
+                if client_message == "2" or client_message == "average water used":
                     # Execute the average moisture query
                     board_name = "Arduino Pro Mini -  refrigerator"  # Example device name
                     try:
@@ -92,7 +92,7 @@ def start_server():
 
                     client_socket.sendall(json.dumps(response).encode())
                 #client option 3
-                elif  client_message == "3" or client_message == "most electricty used":
+                if  client_message == "3" or client_message == "most electricty used":
                     # Execute the average moisture query
                     board_name = "Arduino Pro Mini -  refrigerator"  # Example device name
                     try:
