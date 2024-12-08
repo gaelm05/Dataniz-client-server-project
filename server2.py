@@ -5,27 +5,19 @@ from pymongo.server_api import ServerApi
 from datetime import datetime, timedelta
 
 #get average moisture query
-def get_average_moisture(db, collection_name, board_name, hours=3):
+def get_average_moisture(db, collection_name, hours=3):
     """Calculate the average moisture for a given board name in the past given hours."""
     collection = db[collection_name]
     three_hours_ago = datetime.utcnow() - timedelta(hours=hours)
 
     pipeline = [
         {
+            # Match the specific asset IDs
             "$match": {
                 "payload.parent_asset_uid": "7y3-30g-1m0-ye0",
                 "payload.asset_uid": "c3e-k57-ruu-1e6",
-                "time.$date": {
-                    "$gte": three_hours_ago
-                }
-            }
-        },
-        {
-            "$group": {
-                "_id": None,
-                "averageMoisture": {
-                    "$avg": {"$toDouble": "$payload['Moisture Meter - Moisture Meter']"}
-                }
+                "Moisture Meter - Moisture Meter": "16.6103"
+
             }
         }
     ]
@@ -71,24 +63,53 @@ def start_server():
                 if not client_message:
                     break
                 print(f"Received message: {client_message}")
-
-                if client_message == "2" or "average moisture":
+                #client option 2
+                if client_message == "1" or client_message == "average moisture":
                     # Execute the average moisture query
                     board_name = "Arduino Pro Mini -  refrigerator"  # Example device name
                     hours = 3  # Last 3 hours
                     try:
-                        average_moisture = get_average_moisture(db, "DB1_virtual", board_name, hours)
+                        average_moisture = get_average_moisture(db, "DB1_virtual", hours)
+                        document = collection.find_one({"payload.parent_asset_uid": "7y3-30g-1m0-ye0"})
+                        print(document)
+                        print("this is reaching the try statement")
+                        response = {"average_moisture": average_moisture}
+                    except Exception as e:
+                        response = {"error": str(e)}
+                        client_socket.sendall(json.dumps(response).encode())
+                #client option 2
+                elif client_message == "2" or client_message == "average water used":
+                    # Execute the average moisture query
+                    board_name = "Arduino Pro Mini -  refrigerator"  # Example device name
+                    try:
+                        average_moisture = get_average_moisture(db, "DB1_virtual", hours)
+                        document = collection.find_one({"payload.parent_asset_uid": "7y3-30g-1m0-ye0"})
+                        print(document)
+                        print("this is reaching the try statement")
                         response = {"average_moisture": average_moisture}
                     except Exception as e:
                         response = {"error": str(e)}
 
-                    # Send response back to client
                     client_socket.sendall(json.dumps(response).encode())
+                #client option 3
+                elif  client_message == "3" or client_message == "most electricty used":
+                    # Execute the average moisture query
+                    board_name = "Arduino Pro Mini -  refrigerator"  # Example device name
+                    try:
+                        average_moisture = get_average_moisture(db, "DB1_virtual", hours)
+                        document = collection.find_one({"payload.parent_asset_uid": "7y3-30g-1m0-ye0"})
+                        print(document)
+                        print("this is reaching the try statement")
+                        response = {"average_moisture": average_moisture}
+                    except Exception as e:
+                        response = {"error": str(e)}
 
+                    client_socket.sendall(json.dumps(response).encode())
                 else:
                     # Default behavior for other messages
                     message = f"Unrecognized command: {client_message}"
                     client_socket.sendall(message.encode())
+
         except Exception as e:
                 print(f"Error: {e}")
         finally:
