@@ -14,9 +14,13 @@ def get_average_moisture(db, collection_name, hours=3):
         {
             '$match': {
                 'payload.parent_asset_uid': '7y3-30g-1m0-ye0',
-                'payload.asset_uid': 'c3e-k57-ruu-1e6'
-            }
-        }, {
+                'payload.asset_uid': 'c3e-k57-ruu-1e6',
+                "payload.time": {
+            "$gte": {"$dateSubtract": {"startDate": "$$NOW", "unit": "hour", "amount": 3}}}
+                #"payload.time": {"$gte": three_hours_ago}
+            },
+        },
+    {
         '$project': {
             'moisture': {
                 '$convert': {
@@ -46,6 +50,43 @@ def get_average_moisture(db, collection_name, hours=3):
 
     result = list(collection.aggregate(pipeline))
     return result[0]["averageMoisture"] if result else None
+
+def get_average_water(db, collection_name):
+    collection = db[collection_name]
+    pipeline = [
+        {
+            "$match": {
+                "payload.parent_asset_uid": "2330ce09-40cb-4f53-a87a-f2456a92d519",
+                "payload.asset_uid": "0077360b-bf76-4161-998f-4eda10ec5ddf"
+            }
+        },
+        {
+            "$project": {
+                "waterConsumption": {
+                    "$convert": {
+                        "input": "$payload.Dishwasher",
+                        "to": "double",
+                        "onError": None,
+                        "onNull": None
+                    }
+                }
+            }
+        },
+        {
+            "$match": {
+                "waterConsumption": {"$ne": None}
+            }
+        },
+        {
+            "$group": {
+                "_id": None,
+                "averageWaterConsumptionPerCycle": {"$avg": "$waterConsumption"}
+            }
+        }
+    ]
+
+    result = list(collection.aggregate(pipeline))
+    return result[0]["averageWaterConsumptionPerCycle"] if result else None
 
 def start_server():
     #mongdb connection
@@ -85,7 +126,7 @@ def start_server():
                 if not client_message:
                     break
                 print(f"Received message: {client_message}")
-                #client option 2
+                #client option 1
                 if client_message == "1" or client_message == "average moisture":
                     # Execute the average moisture query
                     board_name = "Arduino Pro Mini -  refrigerator"  # Example device name
@@ -104,26 +145,20 @@ def start_server():
                     # Execute the average moisture query
                     board_name = "Arduino Pro Mini -  refrigerator"  # Example device name
                     try:
-                        document = collection.find_one({"payload.parent_asset_uid": "7y3-30g-1m0-ye0"})
-                        print(document)
-                        print("this is reaching the try statement")
-                        response = {"average_moisture": average_moisture}
+                        average_water= get_average_water(db, "DB1_virtual")
+                        response = {"average_moisture": average_water}
                     except Exception as e:
                         response = {"error": str(e)}
-
                     client_socket.sendall(json.dumps(response).encode())
                 #client option 3
-                if  client_message == "3" or client_message == "most electricty used":
+                if client_message == "3" or client_message == "most electricity used":
                     # Execute the average moisture query
                     board_name = "Arduino Pro Mini -  refrigerator"  # Example device name
                     try:
-                        document = collection.find_one({"payload.parent_asset_uid": "7y3-30g-1m0-ye0"})
-                        print(document)
-                        print("this is reaching the try statement")
-                        response = {"average_moisture": average_moisture}
+                        average_water= get_average_water(db, "DB1_virtual")
+                        response = {"average_moisture": average_water}
                     except Exception as e:
                         response = {"error": str(e)}
-
                     client_socket.sendall(json.dumps(response).encode())
                 else:
                     # Default behavior for other messages
