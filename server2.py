@@ -88,6 +88,125 @@ def get_average_water(db, collection_name):
     result = list(collection.aggregate(pipeline))
     return result[0]["averageWaterConsumptionPerCycle"] if result else None
 
+def usage_electricty(db, collection_name):
+    collection = db[collection_name]
+    pipeline= [
+            {
+                '$match': {
+                    '$or': [
+                        {
+                            'payload.asset_uid': 'c3e-k57-ruu-1e6'
+                        }, {
+                            'payload.asset_uid': '5ccff480-b86b-43c0-9d14-e766ccb20b1c'
+                        }, {
+                            'payload.asset_uid': '0077360b-bf76-4161-998f-4eda10ec5ddf'
+                        }
+                    ]
+                }
+            }, {
+            '$project': {
+                'device': {
+                    '$switch': {
+                        'branches': [
+                            {
+                                'case': {
+                                    '$eq': [
+                                        '$payload.asset_uid', 'c3e-k57-ruu-1e6'
+                                    ]
+                                },
+                                'then': 'Refrigerator 1'
+                            }, {
+                                'case': {
+                                    '$eq': [
+                                        '$payload.asset_uid', '5ccff480-b86b-43c0-9d14-e766ccb20b1c'
+                                    ]
+                                },
+                                'then': 'Refrigerator 2'
+                            }, {
+                                'case': {
+                                    '$eq': [
+                                        '$payload.asset_uid', '0077360b-bf76-4161-998f-4eda10ec5ddf'
+                                    ]
+                                },
+                                'then': 'Dishwasher'
+                            }
+                        ],
+                        'default': 'Unknown Device'
+                    }
+                },
+                'ElectricityUsed': {
+                    '$switch': {
+                        'branches': [
+                            {
+                                'case': {
+                                    '$eq': [
+                                        '$payload.asset_uid', 'c3e-k57-ruu-1e6'
+                                    ]
+                                },
+                                'then': {
+                                    '$convert': {
+                                        'input': '$payload.ammeter-fridge',
+                                        'to': 'double',
+                                        'onError': None,
+                                        'onNull': None
+                                    }
+                                }
+                            }, {
+                                'case': {
+                                    '$eq': [
+                                        '$payload.asset_uid', '5ccff480-b86b-43c0-9d14-e766ccb20b1c'
+                                    ]
+                                },
+                                'then': {
+                                    '$convert': {
+                                        'input': '$payload.ammeter-fridge2',
+                                        'to': 'double',
+                                        'onError': None,
+                                        'onNull': None
+                                    }
+                                }
+                            }, {
+                                'case': {
+                                    '$eq': [
+                                        '$payload.asset_uid', '0077360b-bf76-4161-998f-4eda10ec5ddf'
+                                    ]
+                                },
+                                'then': {
+                                    '$convert': {
+                                        'input': '$payload.ammeter-dishwasher',
+                                        'to': 'double',
+                                        'onError': None,
+                                        'onNull': None
+                                    }
+                                }
+                            }
+                        ],
+                        'default': None
+                    }
+                }
+            }
+        }, {
+            '$match': {
+                'ElectricityUsed': {
+                    '$ne': None
+                }
+            }
+        }, {
+            '$group': {
+                '_id': '$device',
+                'totalElectricityConsumption': {
+                    '$sum': '$ElectricityUsed'
+                }
+            }
+        }, {
+            '$sort': {
+                'totalElectricityConsumption': -1
+            }
+        }
+        ]
+    result = list(collection.aggregate(pipeline))
+    return result[0]["totalElectricityConsumption"] if result else None
+
 def start_server():
     #mongdb connection
     uri = "mongodb+srv://testuser:vmDbYFhZwy65Fgg0@cluster0.py74l.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
@@ -115,60 +234,44 @@ def start_server():
     print(f"Server listening on port {server_port}...")
 
     while True:
-        # Accept a connection from an IP address and socket
         client_socket, client_address = server_socket.accept()
-        print(f"Established connection to {server_ip} and port: {server_port}")
+        print(f"Connection established with {client_address}")
 
         try:
             while True:
-                # Receive the message from the client
                 client_message = client_socket.recv(1024).decode()
                 if not client_message:
                     break
                 print(f"Received message: {client_message}")
-                #client option 1
+
                 if client_message == "1" or client_message == "average moisture":
-                    # Execute the average moisture query
-                    board_name = "Arduino Pro Mini -  refrigerator"  # Example device name
-                    hours = 3  # Last 3 hours
                     try:
-                        average_moisture = get_average_moisture(db, "DB1_virtual", hours)
-                        document = collection.find_one({"payload.parent_asset_uid": "7y3-30g-1m0-ye0"})
-                        print(document)
-                        print("this is reaching the try statement")
-                        response = {"average_moisture": average_moisture}
+                        avg_moisture = get_average_moisture(db, "DB1_virtual")
+                        response = {"average_moisture": avg_moisture}
                     except Exception as e:
                         response = {"error": str(e)}
-                    client_socket.sendall(json.dumps(response).encode())
-                #client option 2
-                if client_message == "2" or client_message == "average water used":
-                    # Execute the average moisture query
-                    board_name = "Arduino Pro Mini -  refrigerator"  # Example device name
+                elif client_message == "2" or client_message == "average water used":
                     try:
-                        average_water= get_average_water(db, "DB1_virtual")
-                        response = {"average_moisture": average_water}
+                        avg_water = get_average_water(db, "DB1_virtual")
+                        response = {"average_water_consumption": avg_water}
                     except Exception as e:
                         response = {"error": str(e)}
-                    client_socket.sendall(json.dumps(response).encode())
-                #client option 3
-                if client_message == "3" or client_message == "most electricity used":
-                    # Execute the average moisture query
-                    board_name = "Arduino Pro Mini -  refrigerator"  # Example device name
+                elif client_message == "3" or client_message == "most electricity used":
                     try:
-                        average_water= get_average_water(db, "DB1_virtual")
-                        response = {"average_moisture": average_water}
+                        electricity_usage = usage_electricty(db, "DB1_virtual")
+                        response = {"electricity_usage": electricity_usage}
                     except Exception as e:
                         response = {"error": str(e)}
-                    client_socket.sendall(json.dumps(response).encode())
                 else:
-                    # Default behavior for other messages
-                    message = f"Unrecognized command: {client_message}"
-                    client_socket.sendall(message.encode())
+                    response = {"error": f"Unrecognized command: {client_message}"}
+
+                client_socket.sendall(json.dumps(response).encode())
 
         except Exception as e:
-                print(f"Error: {e}")
+            print(f"Error: {e}")
         finally:
             client_socket.close()
+
 
 if __name__ == "__main__":
     start_server()
