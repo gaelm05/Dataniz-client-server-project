@@ -1,5 +1,6 @@
 # CECS_327_Assignment8
 Assingment 8
+
 Dataniz 
 
   -Set up the devices , broker, and database conection
