@@ -1,5 +1,5 @@
 # CECS_327_Assignment8
-Assingment 8 Group 25
+Assingment 8 Group 25 Gael Martinez  Maurice Diaz 
 
 Dataniz 
 
