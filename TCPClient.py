@@ -49,7 +49,7 @@ while set_p:
         myTCPSocket.send(bytearray(str('most electricity used'), encoding='utf-8'))
         serverResponse = myTCPSocket.recv(maxBytesToReceive)
         print("Server Response:", serverResponse.decode('utf-8'))
-    elif someData == "Quit":
+    elif someData == "end chat":
         print("Exiting the program.")
         break
     else:
