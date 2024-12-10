@@ -1,5 +1,6 @@
 # CECS_327_Assignment8
 Dataniz 
+
   -Set up the devices , broker, and database conection
   -Had to go into MongoDB to set up the metadata 
 MongoDB
