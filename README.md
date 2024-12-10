@@ -27,4 +27,6 @@ Server
   
 Client
 
-  - 
+  - Modyfied original client to accept the queries defined
+  - Will reject any input other than the alloted queries
+  - Sends querired to server and displays incoming message
